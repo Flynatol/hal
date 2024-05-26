@@ -1,0 +1,16 @@
+[package]
+name = "hal-2"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = "*"
+serenity = { version = "0.12.1", features = ["cache"] }
+songbird = { version = "0.4.1", features = ["builtin-queue", "serenity"] }
+tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
+
+[dependencies.symphonia]
+version = "0.5.2"
+features = ["aac", "mp3", "isomp4", "alac"]
