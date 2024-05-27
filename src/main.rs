@@ -32,7 +32,6 @@ impl TypeMapKey for TrackMetaKey {
     type Value = AuxMetadata;
 }
 
-
 static COMMAND_PREFIX: char = '?';
 
 #[macro_export]
