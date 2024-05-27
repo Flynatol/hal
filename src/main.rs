@@ -9,9 +9,9 @@ use serenity::prelude::*;
 use serenity::Result as SerenityResult;
 
 use songbird::input::AuxMetadata;
-use songbird::input::Compose;
-use songbird::input::YoutubeDl;
-use songbird::tracks::Action;
+
+
+
 use songbird::SerenityInit;
 
 use reqwest::Client as HttpClient;

@@ -1,10 +1,10 @@
-use std::str::FromStr;
+
 use std::sync::Arc;
 use std::time::Duration;
 
-use reqwest::Url;
 
-use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter, CreateMessage, Embed, EmbedAuthor};
+
+use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use serenity::{client::Context, futures::TryFutureExt};
 use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 
 use crate::{say, Handler, HttpKey, TrackMetaKey};
 
-pub async fn join(handler: &Handler, ctx: &Context, msg: &Message) -> JoinResult<Arc<tokio::sync::Mutex<Call>>> {
+pub async fn join(_handler: &Handler, ctx: &Context, msg: &Message) -> JoinResult<Arc<tokio::sync::Mutex<Call>>> {
     let (guild_id, channel_id) = {
         let guild = msg.guild(&ctx.cache).unwrap();
         
@@ -51,7 +51,7 @@ pub async fn join(handler: &Handler, ctx: &Context, msg: &Message) -> JoinResult
             say!(ctx, msg, "Error lacking permissions for that channel");
         },
 
-        Ok(call) => { }
+        Ok(_call) => { }
     }
 
     return res;
@@ -138,7 +138,7 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
     }
 }
 
-pub async fn pause(handler: &Handler, ctx: &Context, msg: &Message) {
+pub async fn pause(_handler: &Handler, ctx: &Context, msg: &Message) {
     let songbird = songbird::get(&ctx)
             .await
             .expect("Songbird Voice client placed in at initialisation.");
@@ -175,7 +175,7 @@ pub async fn pause(handler: &Handler, ctx: &Context, msg: &Message) {
     }
 }
 
-pub async fn stop(handler: &Handler, ctx: &Context, msg: &Message) {
+pub async fn stop(_handler: &Handler, ctx: &Context, msg: &Message) {
     let songbird = songbird::get(&ctx)
             .await
             .expect("Songbird Voice client placed in at initialisation.");
@@ -191,7 +191,7 @@ pub async fn stop(handler: &Handler, ctx: &Context, msg: &Message) {
     }
 }
 
-pub async fn skip(handler: &Handler, ctx: &Context, msg: &Message) {
+pub async fn skip(_handler: &Handler, ctx: &Context, msg: &Message) {
     if let Some(call_handler) = get_songbird(ctx, msg).await {
         let call_handler = call_handler.lock().await;
         
@@ -200,11 +200,11 @@ pub async fn skip(handler: &Handler, ctx: &Context, msg: &Message) {
 
 }
 
-pub async fn play_now(handler: &Handler, ctx: &Context, msg: &Message) {
+pub async fn play_now(_handler: &Handler, _ctx: &Context, _msg: &Message) {
 
 }
 
-pub async fn queue(handler: &Handler, ctx: &Context, msg: &Message) {     
+pub async fn queue(_handler: &Handler, ctx: &Context, msg: &Message) {     
     if let Some(call_handler) = get_songbird(ctx, msg).await {
         let call_handler = call_handler.lock().await;
         let mut i: u32 = 0;
