@@ -1,8 +1,14 @@
 mod commands;
  
 use std::env;
+use std::process::Command;
+use std::process::ExitStatus;
+use std::sync::Arc;
+use std::thread;
+use std::time;
 
 use commands::music::play;
+use serenity::all::ShardManager;
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::prelude::*;
@@ -10,7 +16,7 @@ use serenity::Result as SerenityResult;
 
 use songbird::input::AuxMetadata;
 
-
+use clap::Parser;
 
 use songbird::SerenityInit;
 
@@ -23,6 +29,7 @@ struct Handler;
 
 struct HttpKey;
 struct TrackMetaKey;
+struct ShardManagerContainer;
 
 impl TypeMapKey for HttpKey {
     type Value = HttpClient;
@@ -32,7 +39,11 @@ impl TypeMapKey for TrackMetaKey {
     type Value = AuxMetadata;
 }
 
-static COMMAND_PREFIX: char = '?';
+impl TypeMapKey for ShardManagerContainer {
+    type Value = Arc<ShardManager>;
+}
+
+static COMMAND_PREFIX: char = '!';
 
 #[macro_export]
 macro_rules! say {
@@ -44,6 +55,7 @@ macro_rules! say {
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
+        println!("msg");
 
         if msg.content.starts_with(COMMAND_PREFIX) {
 
@@ -63,16 +75,47 @@ impl EventHandler for Handler {
                 "join" => { let _ = join(self, &ctx, &msg).await; },
                 "queue" => queue(self, &ctx, &msg).await,
                 "skip" => skip(self, &ctx, &msg).await,
+                "edontime" => edon_time(self, &ctx, &msg).await,
+                "update" => update(self, &ctx, &msg).await,
                 _ => {}
             }
         }
     }
 }
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Spawn in child mode?
+    #[arg(short, long, value_name = "child")]
+    child: bool,
+}
 
+fn main() {
+    let args = Args::parse();
+
+    if args.child {
+        println!("Starting Child Instance");
+        main2();
+        println!("tokio main ended");
+    } else {
+        let path = std::env::current_exe().unwrap();
+        println!("Starting Parent Instance");
+
+        while Command::new(&path)
+            .arg("--child")
+            .status()
+            .expect("failed to execute process").success()  
+        {
+            println!("Graceful shutdown detected, rebooting HAL");
+        }
+    }
+
+    println!("Instance killed - is child: {}", args.child);
+}
 
 #[tokio::main]
-async fn main() {
+async fn main2() {
     println!("Starting...");
     // Login with a bot token from the environment
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
@@ -93,6 +136,10 @@ async fn main() {
             .await
             .expect("Err creating client");
     
+    {
+        let mut data = client.data.write().await;
+        data.insert::<ShardManagerContainer>(client.shard_manager.clone());
+    }
     println!("Starting Listener");
 
     // Start listening for events by starting a single shard
@@ -100,7 +147,7 @@ async fn main() {
         println!("Client error: {why:?}");
     }
 
-    println!("Done booting!");
+    println!("Ending Listener");
 }
 
 // Checks that a message successfully sent; if not, then logs why to stdout.

@@ -1,6 +1,6 @@
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 
 
@@ -12,6 +12,7 @@ use songbird::error::JoinResult;
 use songbird::input::{Compose, YoutubeDl};
 use songbird::Call;
 use tokio::sync::Mutex;
+use tokio::time::Instant;
 
 use crate::{say, Handler, HttpKey, TrackMetaKey};
 
@@ -57,7 +58,14 @@ pub async fn join(_handler: &Handler, ctx: &Context, msg: &Message) -> JoinResul
     return res;
 }
 
+fn debug_time(instant: &mut Instant, string: &str) {
+    println!("{} took {}ms", string, Instant::now().duration_since(*instant).as_millis());
+    *instant = Instant::now();
+}
+
 pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
+    let mut timer = Instant::now();
+
     let author_channel_id = {
         let guild = msg.guild(&ctx.cache).unwrap();
         
@@ -68,6 +76,7 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
          
         channel_id
     };
+
 
     if let Some((_, song_to_play)) = msg.content.split_once(' ') {
 
@@ -83,6 +92,7 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
             false => YoutubeDl::new_search(http_client, song_to_play.to_string()),
         };
 
+        debug_time(&mut timer, "getting track");
 
         let songbird = songbird::get(&ctx)
             .await
@@ -107,15 +117,23 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
             println!("done");
         }
         
-        let track_handle = call.enqueue_with_preload(track.clone().into(), Some(Duration::from_secs(1)));
+        debug_time(&mut timer, "joining call");
+
+        let track_handle = call.enqueue_with_preload(track.clone().into(), None);
+
+        debug_time(&mut timer, "enqueue with preload");
 
         let metadata = track.aux_metadata().await.unwrap();
+
+        debug_time(&mut timer, "getting metadata");
 
         track_handle
             .typemap()
             .write()
             .await
             .insert::<TrackMetaKey>(metadata.clone());
+
+        debug_time(&mut timer, "getting track handle");
 
         let title_text = if call.queue().len() == 1 {"Now Playing".to_string()} else {"Queuing".to_string()};
                
@@ -127,12 +145,16 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
 
         let blank = String::new();
         
+        debug_time(&mut timer, "3");
+
         if let Some((_, video_id)) = metadata.source_url.as_ref().unwrap_or(&blank).split_once("?v=") {
             embed = embed.thumbnail(format!("https://i3.ytimg.com/vi/{video_id}/hqdefault.jpg"));  
         }
 
         let _ = msg.channel_id.send_message(ctx.http(), CreateMessage::new().add_embed(embed)).await;
 
+        debug_time(&mut timer, "sending embed");
+         
     } else {
         say!(ctx, msg, "No song specified");
     }
