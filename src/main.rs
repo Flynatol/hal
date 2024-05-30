@@ -55,8 +55,6 @@ macro_rules! say {
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        println!("msg");
-
         if msg.content.starts_with(COMMAND_PREFIX) {
 
             // Hal should not respond to other bots for now
