@@ -38,6 +38,7 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
      
     let output = Command::new("git")
         .arg("fetch")
+        .arg("--all")
         .output();
 
     match output {
@@ -47,6 +48,8 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
 
     let output = Command::new("git")
         .arg("checkout")
+        .arg("origin/main")
+        .arg("--")
         .arg(path)
         .output();
 
