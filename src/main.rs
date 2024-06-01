@@ -43,7 +43,9 @@ impl TypeMapKey for ShardManagerContainer {
     type Value = Arc<ShardManager>;
 }
 
-static COMMAND_PREFIX: char = '!';
+static COMMAND_PREFIX: char = '?';
+static VERSION: &str = "0.0.1";
+
 
 #[macro_export]
 macro_rules! say {
@@ -93,7 +95,7 @@ fn main() {
     let args = Args::parse();
 
     if args.child {
-        println!("Starting Child Instance");
+        println!("Starting Child Instance {}", VERSION);
         main2();
         println!("tokio main ended");
     } else {
@@ -123,6 +125,7 @@ async fn main2() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::all()
         | GatewayIntents::MESSAGE_CONTENT;
+        
 
     println!("Creating Client");
     // Create a new instance of the Client, logging in as a bot.

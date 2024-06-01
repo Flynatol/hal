@@ -37,13 +37,22 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
     }
      
     let output = Command::new("git")
+        .arg("fetch")
+        .output();
+
+    match output {
+        Ok(text) => say!(ctx, msg, "Git: {}", String::from_utf8(text.stderr).expect("Invalid utf8")),
+        Err(_) => say!(ctx, msg, "Invoking git fetch failed"),
+    }
+
+    let output = Command::new("git")
         .arg("checkout")
         .arg(path)
         .output();
 
     match output {
         Ok(text) => say!(ctx, msg, "Git: {}", String::from_utf8(text.stderr).expect("Invalid utf8")),
-        Err(_) => say!(ctx, msg, "Invoking git failed"),
+        Err(_) => say!(ctx, msg, "Invoking git checkout failed"),
     }
 
     let shard_manager = {
