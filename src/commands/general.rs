@@ -13,7 +13,7 @@ use std::os::unix::process::CommandExt;
 use crate::{say, Handler, ShardManagerContainer};
 
 pub async fn ping(_: &Handler, ctx: &Context, msg: &Message) {
-    crate::say!(ctx, msg, "Pong!");
+    crate::say!(ctx, msg, "Pong! v2");
 }
 
 pub async fn edon_time(_: &Handler, ctx: &Context, msg: &Message) {

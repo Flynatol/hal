@@ -44,7 +44,7 @@ impl TypeMapKey for ShardManagerContainer {
 }
 
 static COMMAND_PREFIX: char = '?';
-static VERSION: &str = "0.0.1";
+static VERSION: &str = "0.0.2";
 
 
 #[macro_export]
