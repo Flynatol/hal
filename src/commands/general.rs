@@ -11,7 +11,7 @@ use std::process::Command;
 use crate::{say, Handler, ShardManagerContainer};
 
 pub async fn ping(_: &Handler, ctx: &Context, msg: &Message) {
-    crate::say!(ctx, msg, "Pong! v5");
+    crate::say!(ctx, msg, "Pong! v6");
 }
 
 pub async fn edon_time(_: &Handler, ctx: &Context, msg: &Message) {
