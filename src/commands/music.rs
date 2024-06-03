@@ -1,16 +1,14 @@
 
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
-
-
 
 use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage};
-use serenity::{client::Context, futures::TryFutureExt};
+use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
 use songbird::error::JoinResult;
 use songbird::input::{Compose, YoutubeDl};
 use songbird::Call;
+
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 

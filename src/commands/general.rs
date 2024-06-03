@@ -5,13 +5,13 @@ use serenity::prelude::CacheHttp;
 use chrono::Utc;
 use chrono_tz::Australia::Melbourne;
 
-use std::{fs, ops::Deref};
+use std::fs;
 use std::process::Command;
 
 use crate::{say, Handler, ShardManagerContainer};
 
 pub async fn ping(_: &Handler, ctx: &Context, msg: &Message) {
-    crate::say!(ctx, msg, "Pong! v6");
+    crate::say!(ctx, msg, "Pong!");
 }
 
 pub async fn edon_time(_: &Handler, ctx: &Context, msg: &Message) {
@@ -31,11 +31,11 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
             say!(ctx, msg, "Deleted old executable");
         },
 
-        Err(_) => say!(ctx, msg, "Failed to remove executable"),
+        Err(_) => say!(ctx, msg, "Failed to remove executable!"),
     }
     
     if path.exists() {
-        say!(ctx, msg, "Path still exists!");
+        say!(ctx, msg, "Failed to remove executable!");
     }
     
     let fetch_output = Command::new("git")
@@ -43,9 +43,9 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
         .arg("--all")  
         .output();
     
-    match fetch_output {
-        Ok(text) => say!(ctx, msg, "Git: {} {}", String::from_utf8(text.stderr).expect("Invalid utf8"), String::from_utf8(text.stdout).expect("Invalid utf8")),
-        Err(_) => say!(ctx, msg, "Invoking git fetch failed"),
+   
+    if let Err(e) = fetch_output {
+        say!(ctx, msg, "Invoking git fetch failed {:?}", e);
     }
 
     let checkout_output = Command::new("git")

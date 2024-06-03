@@ -2,10 +2,7 @@ mod commands;
  
 use std::env;
 use std::process::Command;
-use std::process::ExitStatus;
 use std::sync::Arc;
-use std::thread;
-use std::time;
 
 use commands::music::play;
 use serenity::all::ShardManager;
@@ -43,8 +40,8 @@ impl TypeMapKey for ShardManagerContainer {
     type Value = Arc<ShardManager>;
 }
 
-static COMMAND_PREFIX: char = '?';
-static VERSION: &str = "0.0.3";
+static COMMAND_PREFIX: char = '!';
+static VERSION: &str = "0.0.4";
 
 
 #[macro_export]
