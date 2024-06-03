@@ -5,7 +5,7 @@ use serenity::prelude::CacheHttp;
 use chrono::Utc;
 use chrono_tz::Australia::Melbourne;
 
-use std::fs;
+use std::{fs, ops::Deref};
 use std::process::Command;
 
 use crate::{say, Handler, ShardManagerContainer};
@@ -33,25 +33,29 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
 
         Err(_) => say!(ctx, msg, "Failed to remove executable"),
     }
-     
-    let output = Command::new("git")
+    
+    if path.exists() {
+        say!(ctx, msg, "Path still exists!");
+    }
+    
+    let fetch_output = Command::new("git")
         .arg("fetch")
-        .arg("--all")
+        .arg("--all")  
         .output();
-
-    match output {
+    
+    match fetch_output {
         Ok(text) => say!(ctx, msg, "Git: {} {}", String::from_utf8(text.stderr).expect("Invalid utf8"), String::from_utf8(text.stdout).expect("Invalid utf8")),
         Err(_) => say!(ctx, msg, "Invoking git fetch failed"),
     }
 
-    let output = Command::new("git")
+    let checkout_output = Command::new("git")
         .arg("checkout")
-        .arg("origin/main")
-        .arg("--")
-        .arg(path)
+        .arg("origin/main")       
+        .arg(&path)
         .output();
 
-    match output {
+    
+    match checkout_output {
         Ok(text) => say!(ctx, msg, "Git: {} {}", String::from_utf8(text.stderr).expect("Invalid utf8"), String::from_utf8(text.stdout).expect("Invalid utf8")),
         Err(_) => say!(ctx, msg, "Invoking git checkout failed"),
     }
