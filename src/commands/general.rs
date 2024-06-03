@@ -42,7 +42,7 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
         .output();
 
     match output {
-        Ok(text) => say!(ctx, msg, "Git: {}", String::from_utf8(text.stderr).expect("Invalid utf8")),
+        Ok(text) => say!(ctx, msg, "Git: {} {}", String::from_utf8(text.stderr).expect("Invalid utf8"), String::from_utf8(text.stdout).expect("Invalid utf8")),
         Err(_) => say!(ctx, msg, "Invoking git fetch failed"),
     }
 
@@ -54,7 +54,7 @@ pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
         .output();
 
     match output {
-        Ok(text) => say!(ctx, msg, "Git: {}", String::from_utf8(text.stderr).expect("Invalid utf8")),
+        Ok(text) => say!(ctx, msg, "Git: {} {}", String::from_utf8(text.stderr).expect("Invalid utf8"), String::from_utf8(text.stdout).expect("Invalid utf8")),
         Err(_) => say!(ctx, msg, "Invoking git checkout failed"),
     }
 
