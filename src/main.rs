@@ -19,6 +19,8 @@ use songbird::SerenityInit;
 
 use reqwest::Client as HttpClient;
 
+use serde::{Deserialize, Serialize};
+
 use crate::commands::music::*;
 use crate::commands::general::*;
 
@@ -43,6 +45,11 @@ impl TypeMapKey for ShardManagerContainer {
 static COMMAND_PREFIX: char = '!';
 static VERSION: &str = "0.0.4";
 
+#[derive(Serialize, Deserialize, Debug)]
+struct Point {
+    x: i32,
+    y: i32,
+}
 
 #[macro_export]
 macro_rules! say {
@@ -114,6 +121,7 @@ fn main() {
 #[tokio::main]
 async fn main2() {
     println!("Starting...");
+   
     // Login with a bot token from the environment
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 

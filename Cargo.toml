@@ -10,6 +10,8 @@ chrono = "0.4.38"
 chrono-tz = "0.9.0"
 clap = { version = "4.5.4", features = ["derive"] }
 reqwest = "0.11.27"
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
 serenity = { version = "0.12.1", features = ["cache"] }
 songbird = { version = "0.4.1", features = ["builtin-queue", "serenity"] }
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
@@ -17,3 +19,6 @@ tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
 [dependencies.symphonia]
 version = "0.5.2"
 features = ["aac", "mp3", "isomp4", "alac"]
+
+[patch.crates-io]
+songbird = { path = "./patches/songbird-0.4.1"}

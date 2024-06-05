@@ -1,13 +1,16 @@
 
 use std::sync::Arc;
+use std::time::Duration;
 
+use serde_json::json;
 use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
 use songbird::error::JoinResult;
-use songbird::input::{Compose, YoutubeDl};
+use songbird::input::{AudioStreamError, AuxMetadata, Compose, YoutubeDl};
 use songbird::Call;
+use songbird::input::queue_list;
 
 use tokio::sync::Mutex;
 use tokio::time::Instant;
@@ -61,6 +64,90 @@ fn debug_time(instant: &mut Instant, string: &str) {
     *instant = Instant::now();
 }
 
+pub async fn play_playlist(handler: &Handler, ctx: &Context, msg: &Message) {
+    let author_channel_id = {
+        let guild = msg.guild(&ctx.cache).unwrap();
+        
+        let channel_id: Option<serenity::all::ChannelId> = guild
+            .voice_states
+            .get(&msg.author.id)
+            .and_then(|voice_state| voice_state.channel_id);
+         
+        channel_id
+    };
+
+    let http_client = {
+        let data = ctx.data.read().await;
+        data.get::<HttpKey>()
+            .cloned()
+            .expect("Guaranteed to exist in the typemap.")
+    };
+
+    if let Some((_, song_to_play)) = msg.content.split_once(' ') { 
+        if let Ok(mut song_list) = queue_list(song_to_play, http_client).await {
+            
+            let songbird = songbird::get(&ctx)
+                .await
+                .expect("Songbird Voice client placed in at initialisation.");
+                
+            let call_handler = match songbird.get(msg.guild_id.unwrap()) {
+                Some(unlocked) => unlocked,
+                None => {
+                    println!("Could not find songbird");
+
+                    match join(handler, ctx, msg).await {
+                        Ok(e) => e,
+                        Err(_) => return,
+                }},
+            };
+
+            let mut call = call_handler.lock().await;
+            
+            if !(call.current_channel().map(|i| i.0.get()) == author_channel_id.map(|i| i.get())) {
+                println!("switching channel");
+                let _ = call.join(author_channel_id.unwrap()).await;
+                println!("done");
+            }
+            
+            println!("Added {} to the playlist", song_list.len());
+
+            let mut first_meta: Option<AuxMetadata> = None;
+            
+            for track in &mut song_list[..] {
+                let track_handle = call.enqueue_with_preload(track.clone().into(), Some(Duration::from_secs(1)));
+
+                let metadata = track.aux_metadata().await.unwrap();
+
+                if first_meta == None {first_meta = Some(metadata.clone())}
+
+                track_handle
+                    .typemap()
+                    .write()
+                    .await
+                    .insert::<TrackMetaKey>(metadata.clone()); 
+            }
+
+            if let Some(metadata) = first_meta {
+                let mut embed = CreateEmbed::new()
+                    .colour(Colour::RED)
+                    .author(CreateEmbedAuthor::new(format!("Queuing {} from Playlist", song_list.len())))
+                    .title(metadata.title.as_ref().unwrap_or(&String::from("Unknown")))
+                    .url(metadata.source_url.as_ref().unwrap_or(&String::from("https://www.youtube.com/watch?v=dQw4w9WgXcQ")));                 
+
+                let blank = String::new();
+                if let Some((_, video_id)) = metadata.source_url.as_ref().unwrap_or(&blank).split_once("?v=") {
+                    embed = embed.thumbnail(format!("https://i3.ytimg.com/vi/{video_id}/hqdefault.jpg"));  
+                }
+
+                let _ = msg.channel_id.send_message(ctx.http(), CreateMessage::new().add_embed(embed)).await;
+            }
+        }
+    }
+
+
+
+}
+
 pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
     let mut timer = Instant::now();
 
@@ -78,12 +165,19 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
 
     if let Some((_, song_to_play)) = msg.content.split_once(' ') {
 
+        if song_to_play.contains("&list=") {
+            println!("playing playlist");
+            play_playlist(handler, ctx, msg).await;
+            return;
+        }
+
         let http_client = {
             let data = ctx.data.read().await;
             data.get::<HttpKey>()
                 .cloned()
                 .expect("Guaranteed to exist in the typemap.")
         };
+
         
         let mut track = match song_to_play.starts_with("https") || song_to_play.starts_with("www.") {
             true => YoutubeDl::new(http_client, song_to_play.to_string()),
@@ -117,7 +211,8 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
         
         debug_time(&mut timer, "joining call");
 
-        let track_handle = call.enqueue_with_preload(track.clone().into(), None);
+        let yt_track: songbird::tracks::Track = track.clone().into();
+        let track_handle = call.enqueue_with_preload(yt_track, Some(Duration::from_secs(1)));
 
         debug_time(&mut timer, "enqueue with preload");
 
@@ -228,7 +323,7 @@ pub async fn queue(_handler: &Handler, ctx: &Context, msg: &Message) {
     if let Some(call_handler) = get_songbird(ctx, msg).await {
         let call_handler = call_handler.lock().await;
         let mut i: u32 = 0;
-        for t in call_handler.queue().current_queue() {
+        for t in &call_handler.queue().current_queue().as_slice()[..5] {
             if let Some(metadata) = t.typemap().read().await.get::<TrackMetaKey>() {
                 let title_text = if i == 0 {"Now Playing".to_string()} else {format!("#{} in Queue", i)};
                
@@ -258,3 +353,22 @@ async fn get_songbird(ctx: &Context, msg: &Message) -> Option<Arc<Mutex<Call>>> 
 
     msg.guild_id.map(|guild_id| songbird.get(guild_id)).flatten()
 }
+/*
+async fn playlist_query(url: &String) -> Result<Vec<AuxMetadata>, AudioStreamError> {
+    let ytdl_args = [
+            "-j",
+            "--flat-playlist",
+            url,
+            "-f",
+            "ba[abr>0][vcodec=none]/best",
+        ];
+
+    let test = "sfsdfsdfsd".as_bytes();
+    let test = test.split_mut(|&b| b == b'\n')
+    .filter_map(|x| (!x.is_empty()).then(|| json::from_slice(x)))
+    .collect::<Result<Vec<Output>, _>>()
+    .map_err(|e| AudioStreamError::Fail(Box::new(e)))?;
+
+    return todo!();
+}
+ */
