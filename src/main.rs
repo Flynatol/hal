@@ -1,10 +1,14 @@
 mod commands;
- 
+mod util;
+
 use std::env;
 use std::process::Command;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 
 use commands::music::play;
+use google_youtube3::hyper;
+use google_youtube3::oauth2;
+use google_youtube3::YouTube;
 use serenity::all::ShardManager;
 use serenity::async_trait;
 use serenity::model::channel::Message;
@@ -23,12 +27,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::commands::music::*;
 use crate::commands::general::*;
+use crate::util::config::*;
 
 struct Handler;
 
 struct HttpKey;
 struct TrackMetaKey;
 struct ShardManagerContainer;
+
+struct ConfigContainer;
+
+impl TypeMapKey for ConfigContainer {
+    type Value = ConfigHandler;
+}
 
 impl TypeMapKey for HttpKey {
     type Value = HttpClient;
@@ -42,14 +53,7 @@ impl TypeMapKey for ShardManagerContainer {
     type Value = Arc<ShardManager>;
 }
 
-static COMMAND_PREFIX: char = '!';
 static VERSION: &str = "0.0.4";
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Point {
-    x: i32,
-    y: i32,
-}
 
 #[macro_export]
 macro_rules! say {
@@ -60,8 +64,8 @@ macro_rules! say {
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content.starts_with(COMMAND_PREFIX) {
+    async fn message(&self, ctx: Context, msg: Message) {       
+        if msg.content.starts_with(&ctx.data.read().await.get::<ConfigContainer>().expect("missing config").read_config().command_prefix) {
 
             // Hal should not respond to other bots for now
             if msg.author.bot {return}
@@ -97,10 +101,10 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-
+    
     if args.child {
         println!("Starting Child Instance {}", VERSION);
-        main2();
+        run_bot();
         println!("tokio main ended");
     } else {
         let path = std::env::current_exe().unwrap();
@@ -119,9 +123,13 @@ fn main() {
 }
 
 #[tokio::main]
-async fn main2() {
+async fn run_bot() {
     println!("Starting...");
-   
+    
+    let config = ConfigHandler::load_config_file().expect("Error loading config!");
+    config.print_state();
+    config.save_state().expect("Error saving config");
+
     // Login with a bot token from the environment
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
@@ -139,6 +147,7 @@ async fn main2() {
             .event_handler(Handler)
             .register_songbird()
             .type_map_insert::<HttpKey>(HttpClient::new())
+            .type_map_insert::<ConfigContainer>(config)
             .await
             .expect("Err creating client");
     
@@ -147,7 +156,6 @@ async fn main2() {
         data.insert::<ShardManagerContainer>(client.shard_manager.clone());
     }
     println!("Starting Listener");
-
     // Start listening for events by starting a single shard
     if let Err(why) = client.start().await {
         println!("Client error: {why:?}");

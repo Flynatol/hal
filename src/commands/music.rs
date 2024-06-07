@@ -2,14 +2,14 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use serde_json::json;
-use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage};
+use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, Embed};
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
 use songbird::error::JoinResult;
-use songbird::input::{AudioStreamError, AuxMetadata, Compose, YoutubeDl};
+use songbird::input::{AuxMetadata, Compose, YoutubeDl};
 use songbird::Call;
+
 use songbird::input::queue_list;
 
 use tokio::sync::Mutex;
@@ -148,6 +148,31 @@ pub async fn play_playlist(handler: &Handler, ctx: &Context, msg: &Message) {
 
 }
 
+async fn get_info_from_embed(ctx: &Context, msg: &Message) -> Option<Embed> {
+    let mut current_message = msg;
+    let mut message_store;
+
+    while let None = current_message.embeds.first() {
+        let mut test_timer = Instant::now();
+        let new = msg.channel_id.message(ctx, msg.id).await;
+        debug_time(&mut test_timer, "getting msg from discord");
+
+        if let Ok(m) = new {
+            if let Some(e) = m.embeds.first() {
+                return Some(e.clone());
+            } else {
+                message_store = m;
+                current_message = &message_store;
+                println!("Looping");
+            }
+        } else {
+            return None;
+        }
+    }
+
+    return None;
+}
+
 pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
     let mut timer = Instant::now();
 
@@ -162,15 +187,24 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
         channel_id
     };
 
-
     if let Some((_, song_to_play)) = msg.content.split_once(' ') {
+
+        let mut test = false;
 
         if song_to_play.contains("&list=") {
             println!("playing playlist");
             play_playlist(handler, ctx, msg).await;
             return;
+        } else if song_to_play.contains("www.youtube.com") {
+            if let Some(embed) = get_info_from_embed(ctx, msg).await {
+                println!("{:?}", embed.title);
+            }
         }
 
+        
+        
+
+        
         let http_client = {
             let data = ctx.data.read().await;
             data.get::<HttpKey>()
