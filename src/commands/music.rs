@@ -191,7 +191,11 @@ pub async fn yt_test(handler: &Handler, ctx: &Context, msg: &Message) {
                 .expect("Guaranteed to exist in the typemap.")
         };
 
+<<<<<<< HEAD
         let res = http_client.get(format!("https://www.googleapis.com/youtube/v3/search?part=snippet&q={}&key=AIzaSyA3TybuJTwzcmxPHBKvAdVsqkuP7N2o7YI&fields=items(id(videoId),snippet(title,thumbnails(high(url))))&maxResults=1", song_to_play.to_string())).send().await.unwrap();
+=======
+        let res = http_client.get(format!("https://www.googleapis.com/youtube/v3/search?part=snippet&q={}&key=[TODO PUT KEY HERE]&fields=items(id(videoId),snippet(title,thumbnails(high(url))))&maxResults=1", song_to_play.to_string())).send().await.unwrap();
+>>>>>>> 5e18ace (Added yt api)
                     
         let item = res.json::<YTApiResponse>().await.unwrap();
 
@@ -223,10 +227,19 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
             return;
         }
 
+<<<<<<< HEAD
         let call_mutex = get_call(ctx, msg).await;
         let mut call = call_mutex.lock().await;
 
         debug_time(&mut timer, "getting songbird");
+=======
+        debug_time(&mut timer, "starting");
+
+        let call_mutex = get_call(ctx, msg).await;
+        let mut call = call_mutex.lock().await;
+
+        debug_time(&mut timer, "getting call");
+>>>>>>> 5e18ace (Added yt api)
 
         
         if song_to_play.contains("www.youtube.com") {
