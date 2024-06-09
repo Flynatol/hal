@@ -3,7 +3,6 @@ mod util;
 
 use std::env;
 use std::process::Command;
-use std::sync::{Arc, Once};
 
 use commands::music::play;
 use google_youtube3::hyper;
@@ -15,43 +14,16 @@ use serenity::model::channel::Message;
 use serenity::prelude::*;
 use serenity::Result as SerenityResult;
 
-use songbird::input::AuxMetadata;
-
 use clap::Parser;
 
 use songbird::SerenityInit;
 
-use reqwest::Client as HttpClient;
-
-use serde::{Deserialize, Serialize};
-
 use crate::commands::music::*;
 use crate::commands::general::*;
 use crate::util::config::*;
+use crate::util::typemap::*;
 
 struct Handler;
-
-struct HttpKey;
-struct TrackMetaKey;
-struct ShardManagerContainer;
-
-struct ConfigContainer;
-
-impl TypeMapKey for ConfigContainer {
-    type Value = ConfigHandler;
-}
-
-impl TypeMapKey for HttpKey {
-    type Value = HttpClient;
-}
-
-impl TypeMapKey for TrackMetaKey {
-    type Value = AuxMetadata;
-}
-
-impl TypeMapKey for ShardManagerContainer {
-    type Value = Arc<ShardManager>;
-}
 
 static VERSION: &str = "0.0.4";
 
@@ -64,15 +36,18 @@ macro_rules! say {
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn message(&self, ctx: Context, msg: Message) {       
-        if msg.content.starts_with(&ctx.data.read().await.get::<ConfigContainer>().expect("missing config").read_config().command_prefix) {
+    async fn message(&self, ctx: Context, msg: Message) {   
+        let store = &ctx.data.read().await;
+        let prefix = &store.get::<ConfigContainer>().expect("missing config").read_config().command_prefix;
+
+        if msg.content.starts_with(prefix) {
 
             // Hal should not respond to other bots for now
             if msg.author.bot {return}
             
             let command = match msg.content.split_once(' ') {
-                Some((first, _)) => &first[1..],
-                None => &msg.content[1..],
+                Some((first, _)) => &first[prefix.len()..],
+                None => &msg.content[prefix.len()..],
             };
         
             match command {
@@ -80,11 +55,12 @@ impl EventHandler for Handler {
                 "play" => play(self, &ctx, &msg).await,
                 "stop" => stop(self, &ctx, &msg).await,
                 "pause" => pause(self, &ctx, &msg).await,
-                "join" => { let _ = join(self, &ctx, &msg).await; },
+                "join" => { let _ = join(&ctx, &msg).await; },
                 "queue" => queue(self, &ctx, &msg).await,
                 "skip" => skip(self, &ctx, &msg).await,
                 "edontime" => edon_time(self, &ctx, &msg).await,
                 "update" => update(self, &ctx, &msg).await,
+                "yt_test" => yt_test(self, &ctx, &msg).await,
                 _ => {}
             }
         }
@@ -146,7 +122,7 @@ async fn run_bot() {
         Client::builder(&token, intents)
             .event_handler(Handler)
             .register_songbird()
-            .type_map_insert::<HttpKey>(HttpClient::new())
+            .type_map_insert::<HttpKey>(reqwest::Client::new())
             .type_map_insert::<ConfigContainer>(config)
             .await
             .expect("Err creating client");
