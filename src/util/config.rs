@@ -17,6 +17,7 @@ pub struct Config {
     pub bot_name: String,
     pub command_prefix: String,
     pub auth_users: Vec<UserId>,
+    pub yt_api_key: String,
 }
 
 impl Default for Config {
@@ -25,6 +26,7 @@ impl Default for Config {
             bot_name: String::from("unnamed bot"),
             command_prefix: String::from("!"),
             auth_users: vec![UserId::new(95637120575614976)],
+            yt_api_key: String::from(""),
         }
     }
 }
@@ -78,12 +80,16 @@ impl ConfigHandler {
     pub fn set_config(&mut self, new_config: Config) -> Result<(), serde_json::Error> {
         self.config = new_config;
         self.update_state_from_config()?;
+
+        self.save_state();
         Ok(())
     }
 
     pub fn set_state(&mut self, new_state: Value) -> Result<(), serde_json::Error> {
         self.state = new_state;
         self.update_config_from_state()?;
+        
+        self.save_state();
         Ok(())
     }
 

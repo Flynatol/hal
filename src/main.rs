@@ -37,10 +37,15 @@ macro_rules! say {
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {   
-        let store = &ctx.data.read().await;
-        let prefix = &store.get::<ConfigContainer>().expect("missing config").read_config().command_prefix;
+        //let store = ctx.data.read().await;
+        //let prefix = store.get::<ConfigContainer>().expect("missing config").read_config().command_prefix.clone();
 
-        if msg.content.starts_with(prefix) {
+        let prefix = {
+            let store = ctx.data.read().await;
+            store.get::<ConfigContainer>().expect("missing config").read_config().command_prefix.clone()
+        };
+
+        if msg.content.starts_with(&prefix) {
 
             // Hal should not respond to other bots for now
             if msg.author.bot {return}
@@ -61,6 +66,8 @@ impl EventHandler for Handler {
                 "edontime" => edon_time(self, &ctx, &msg).await,
                 "update" => update(self, &ctx, &msg).await,
                 "yt_test" => yt_test(self, &ctx, &msg).await,
+                "update_config" => update_config(self, &ctx, &msg).await,
+                "log_config" => log_config(self, &ctx, &msg).await,
                 _ => {}
             }
         }

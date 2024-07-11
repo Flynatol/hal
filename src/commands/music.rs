@@ -49,14 +49,12 @@ pub async fn join(ctx: &Context, msg: &Message) -> JoinResult<Arc<tokio::sync::M
     println!("joined");
 
 
-    match &res {
-        Err(e) => {
-            print!("Failed to join channel : {e}");
-            say!(ctx, msg, "Error lacking permissions for that channel");
-        },
+    if let Err(e) = &res {
+        print!("Failed to join channel : {e}");
+        say!(ctx, msg, "Error lacking permissions for that channel");
+    };
 
-        Ok(_call) => { }
-    }
+    //todo
 
     return res;
 }
@@ -216,115 +214,115 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
         channel_id
     };
 
-    if let Some((_, song_to_play)) = msg.content.split_once(' ') {
-        if song_to_play.contains("&list=") {
-            println!("playing playlist");
-            play_playlist(handler, ctx, msg).await;
-            return;
-        }
-
-        debug_time(&mut timer, "starting");
-
-        let call_mutex = get_call(ctx, msg).await;
-        let mut call = call_mutex.lock().await;
-
-        debug_time(&mut timer, "getting call");
-
-        
-        if song_to_play.contains("www.youtube.com") {
-            if let Ok(Some(embed)) = tokio::time::timeout(Duration::from_secs(1), get_info_from_embed(ctx, msg)).await {
-                println!("{:?}", embed.title);
-            } 
-        }
-        
-        let http_client = {
-            let data = ctx.data.read().await;
-            data.get::<HttpKey>()
-                .cloned()
-                .expect("Guaranteed to exist in the typemap.")
-        };
-
-        debug_time(&mut timer, "pl check");
-        
-        
-        let mut track = match song_to_play.starts_with("https") || song_to_play.starts_with("www.") {
-            true => YoutubeDl::new(http_client, song_to_play.to_string()),
-            false => if call.queue().len() != 0 {
-                YoutubeDl::new_search(http_client, song_to_play.to_string())
-            } else {
-                println!("using yt track");
-
-                debug_time(&mut timer, "making yt req");
-                let res = http_client.get(format!("https://www.googleapis.com/youtube/v3/search?part=snippet&q={}&key=[KEY]&fields=items(id(videoId),snippet(title,thumbnails(high(url))))&maxResults=1", song_to_play.to_string())).send().await.unwrap();
-                
-                let item = res.json::<YTApiResponse>().await.unwrap();
-
-                debug_time(&mut timer, "got yt api response");
-
-                let video = item.items.first().expect("No results found for search!");
-
-                let meta = AuxMetadata {
-                    title: Some(video.title.clone()),
-                    thumbnail: Some(video.thumbnails.clone()),
-                    ..Default::default()
-                };
-
-                YoutubeDl::new_custom_meta(Some(meta), http_client,  &format!("https://www.youtube.com/watch?v={}", video.id))
-            } ,
-        };
-
-        debug_time(&mut timer, "getting track");
-
-        if !(call.current_channel().map(|i| i.0.get()) == author_channel_id.map(|i| i.get())) {
-            println!("switching channel");
-            let _ = call.join(author_channel_id.unwrap()).await;
-            println!("done");
-        }
-        
-        debug_time(&mut timer, "joining call");
-
-        let yt_track: songbird::tracks::Track = track.clone().into();
-        let track_handle = call.enqueue_with_preload(yt_track, Some(Duration::from_secs(1)));
-
-        debug_time(&mut timer, "enqueue with preload");
-
-        //tokio::time::sleep(Duration::from_secs(10)).await;
-
-        let metadata = track.aux_metadata().await.unwrap();
-
-        debug_time(&mut timer, "getting metadata");
-
-        track_handle
-            .typemap()
-            .write()
-            .await
-            .insert::<TrackMetaKey>(metadata.clone());
-
-        debug_time(&mut timer, "getting track handle");
-
-        let title_text = if call.queue().len() == 1 {"Now Playing".to_string()} else {"Queuing".to_string()};
-               
-        let mut embed = CreateEmbed::new()
-            .colour(Colour::RED)
-            .author(CreateEmbedAuthor::new(title_text))
-            .title(metadata.title.as_ref().unwrap_or(&String::from("Unknown")))
-            .url(metadata.source_url.as_ref().unwrap_or(&String::from("https://www.youtube.com/watch?v=dQw4w9WgXcQ")));                 
-
-        let blank = String::new();
-        
-        debug_time(&mut timer, "3");
-
-        if let Some((_, video_id)) = metadata.source_url.as_ref().unwrap_or(&blank).split_once("?v=") {
-            embed = embed.thumbnail(format!("https://i3.ytimg.com/vi/{video_id}/hqdefault.jpg"));  
-        }
-
-        let sent = msg.channel_id.send_message(ctx.http(), CreateMessage::new().add_embed(embed)).await;
-
-        debug_time(&mut timer, "sending embed");
-         
-    } else {
+    let Some((_, song_to_play)) = msg.content.split_once(' ') else {
         say!(ctx, msg, "No song specified");
+        return;
+    };
+        
+    if song_to_play.contains("&list=") {
+        println!("playing playlist");
+        play_playlist(handler, ctx, msg).await;
+        return;
     }
+
+    debug_time(&mut timer, "starting");
+
+    let call_mutex = get_call(ctx, msg).await;
+    let mut call = call_mutex.lock().await;
+
+    debug_time(&mut timer, "getting call");
+
+    
+    if song_to_play.contains("www.youtube.com") {
+        if let Ok(Some(embed)) = tokio::time::timeout(Duration::from_secs(1), get_info_from_embed(ctx, msg)).await {
+            println!("{:?}", embed.title);
+        } 
+    }
+    
+    let http_client = {
+        let data = ctx.data.read().await;
+        data.get::<HttpKey>()
+            .cloned()
+            .expect("Guaranteed to exist in the typemap.")
+    };
+
+    debug_time(&mut timer, "pl check");
+    
+    
+    let mut track = match song_to_play.starts_with("https") || song_to_play.starts_with("www.") {
+        true => YoutubeDl::new(http_client, song_to_play.to_string()),
+        false => if call.queue().len() != 0 {
+            YoutubeDl::new_search(http_client, song_to_play.to_string())
+        } else {
+            println!("using yt track");
+
+            debug_time(&mut timer, "making yt req");
+            let res = http_client.get(format!("https://www.googleapis.com/youtube/v3/search?part=snippet&q={}&key=[KEY]&fields=items(id(videoId),snippet(title,thumbnails(high(url))))&maxResults=1", song_to_play.to_string())).send().await.unwrap();
+            
+            let item = res.json::<YTApiResponse>().await.unwrap();
+
+            debug_time(&mut timer, "got yt api response");
+
+            let video = item.items.first().expect("No results found for search!");
+
+            let meta = AuxMetadata {
+                title: Some(video.title.clone()),
+                thumbnail: Some(video.thumbnails.clone()),
+                ..Default::default()
+            };
+
+            YoutubeDl::new_custom_meta(Some(meta), http_client,  &format!("https://www.youtube.com/watch?v={}", video.id))
+        } ,
+    };
+
+    debug_time(&mut timer, "getting track");
+
+    if !(call.current_channel().map(|i| i.0.get()) == author_channel_id.map(|i| i.get())) {
+        println!("switching channel");
+        let _ = call.join(author_channel_id.unwrap()).await;
+        println!("done");
+    }
+    
+    debug_time(&mut timer, "joining call");
+
+    let yt_track: songbird::tracks::Track = track.clone().into();
+    let track_handle = call.enqueue_with_preload(yt_track, Some(Duration::from_secs(1)));
+
+    debug_time(&mut timer, "enqueue with preload");
+
+    //tokio::time::sleep(Duration::from_secs(10)).await;
+
+    let metadata = track.aux_metadata().await.unwrap();
+
+    debug_time(&mut timer, "getting metadata");
+
+    track_handle
+        .typemap()
+        .write()
+        .await
+        .insert::<TrackMetaKey>(metadata.clone());
+
+    debug_time(&mut timer, "getting track handle");
+
+    let title_text = if call.queue().len() == 1 {"Now Playing".to_string()} else {"Queuing".to_string()};
+            
+    let mut embed = CreateEmbed::new()
+        .colour(Colour::RED)
+        .author(CreateEmbedAuthor::new(title_text))
+        .title(metadata.title.as_ref().unwrap_or(&String::from("Unknown")))
+        .url(metadata.source_url.as_ref().unwrap_or(&String::from("https://www.youtube.com/watch?v=dQw4w9WgXcQ")));                 
+
+    let blank = String::new();
+    
+    debug_time(&mut timer, "3");
+
+    if let Some((_, video_id)) = metadata.source_url.as_ref().unwrap_or(&blank).split_once("?v=") {
+        embed = embed.thumbnail(format!("https://i3.ytimg.com/vi/{video_id}/hqdefault.jpg"));  
+    }
+
+    let sent = msg.channel_id.send_message(ctx.http(), CreateMessage::new().add_embed(embed)).await;
+
+    debug_time(&mut timer, "sending embed"); 
 }
 
 pub async fn pause(_handler: &Handler, ctx: &Context, msg: &Message) {
