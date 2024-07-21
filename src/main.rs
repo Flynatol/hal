@@ -5,10 +5,7 @@ use std::env;
 use std::process::Command;
 
 use commands::music::play;
-use google_youtube3::hyper;
-use google_youtube3::oauth2;
-use google_youtube3::YouTube;
-use serenity::all::ShardManager;
+
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::prelude::*;
@@ -18,14 +15,14 @@ use clap::Parser;
 
 use songbird::SerenityInit;
 
-use crate::commands::music::*;
 use crate::commands::general::*;
+use crate::commands::music::*;
 use crate::util::config::*;
 use crate::util::typemap::*;
 
 struct Handler;
 
-static VERSION: &str = "0.0.4";
+static VERSION: &str = "0.0.5";
 
 #[macro_export]
 macro_rules! say {
@@ -36,31 +33,37 @@ macro_rules! say {
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn message(&self, ctx: Context, msg: Message) {   
-        //let store = ctx.data.read().await;
-        //let prefix = store.get::<ConfigContainer>().expect("missing config").read_config().command_prefix.clone();
-
+    async fn message(&self, ctx: Context, msg: Message) {
         let prefix = {
             let store = ctx.data.read().await;
-            store.get::<ConfigContainer>().expect("missing config").read_config().command_prefix.clone()
+
+            store
+                .get::<ConfigContainer>()
+                .expect("missing config")
+                .read_config()
+                .command_prefix
+                .clone()
         };
 
         if msg.content.starts_with(&prefix) {
+            // Bot should not respond to other bots for now
+            if msg.author.bot {
+                return;
+            }
 
-            // Hal should not respond to other bots for now
-            if msg.author.bot {return}
-            
             let command = match msg.content.split_once(' ') {
                 Some((first, _)) => &first[prefix.len()..],
                 None => &msg.content[prefix.len()..],
             };
-        
+
             match command {
                 "ping" => ping(self, &ctx, &msg).await,
                 "play" => play(self, &ctx, &msg).await,
                 "stop" => stop(self, &ctx, &msg).await,
                 "pause" => pause(self, &ctx, &msg).await,
-                "join" => { let _ = join(&ctx, &msg).await; },
+                "join" => {
+                    let _ = join(&ctx, &msg).await;
+                }
                 "queue" => queue(self, &ctx, &msg).await,
                 "skip" => skip(self, &ctx, &msg).await,
                 "edontime" => edon_time(self, &ctx, &msg).await,
@@ -84,7 +87,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    
+
     if args.child {
         println!("Starting Child Instance {}", VERSION);
         run_bot();
@@ -96,7 +99,8 @@ fn main() {
         while Command::new(&path)
             .arg("--child")
             .status()
-            .expect("failed to execute process").success()  
+            .expect("failed to execute process")
+            .success()
         {
             println!("Graceful shutdown detected, rebooting HAL");
         }
@@ -108,7 +112,7 @@ fn main() {
 #[tokio::main]
 async fn run_bot() {
     println!("Starting...");
-    
+
     let config = ConfigHandler::load_config_file().expect("Error loading config!");
     config.print_state();
     config.save_state().expect("Error saving config");
@@ -121,19 +125,17 @@ async fn run_bot() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::all()
         | GatewayIntents::MESSAGE_CONTENT;
-        
 
     println!("Creating Client");
     // Create a new instance of the Client, logging in as a bot.
-    let mut client =
-        Client::builder(&token, intents)
-            .event_handler(Handler)
-            .register_songbird()
-            .type_map_insert::<HttpKey>(reqwest::Client::new())
-            .type_map_insert::<ConfigContainer>(config)
-            .await
-            .expect("Err creating client");
-    
+    let mut client = Client::builder(&token, intents)
+        .event_handler(Handler)
+        .register_songbird()
+        .type_map_insert::<HttpKey>(reqwest::Client::new())
+        .type_map_insert::<ConfigContainer>(config)
+        .await
+        .expect("Err creating client");
+
     {
         let mut data = client.data.write().await;
         data.insert::<ShardManagerContainer>(client.shard_manager.clone());

@@ -1,6 +1,5 @@
 use songbird::typemap::TypeMapKey;
 
-
 pub struct HttpKey;
 pub struct TrackMetaKey;
 pub struct ShardManagerContainer;
