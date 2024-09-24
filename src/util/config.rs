@@ -18,6 +18,7 @@ pub struct Config {
     pub command_prefix: String,
     pub auth_users: Vec<UserId>,
     pub yt_api_key: String,
+    pub discord_api_key: String,
 }
 
 impl Default for Config {
@@ -27,6 +28,7 @@ impl Default for Config {
             command_prefix: String::from("!"),
             auth_users: vec![UserId::new(95637120575614976)],
             yt_api_key: String::from(""),
+            discord_api_key: String::from(""),
         }
     }
 }

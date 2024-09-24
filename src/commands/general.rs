@@ -25,7 +25,22 @@ pub async fn edon_time(_: &Handler, ctx: &Context, msg: &Message) {
     );
 }
 
+pub async fn is_admin(ctx: &Context, msg: &Message) -> bool {
+    let store = ctx.data.read().await;
+    store
+        .get::<ConfigContainer>()
+        .expect("Missing Config")
+        .read_config()
+        .auth_users
+        .contains(&msg.author.id)
+}
+
 pub async fn update_config(_: &Handler, ctx: &Context, msg: &Message) {
+    if !is_admin(ctx, msg).await {
+        say!(ctx, msg, "Permission Denied.");
+        return;
+    };
+
     if let Some((_, command)) = msg.content.split_once(' ') {
         if let Some((key, value)) = command.split_once(' ') {
             println!("Waiting for store lock");
@@ -47,7 +62,12 @@ pub async fn update_config(_: &Handler, ctx: &Context, msg: &Message) {
     }
 }
 
-pub async fn log_config(_: &Handler, ctx: &Context, _: &Message) {
+pub async fn log_config(_: &Handler, ctx: &Context, msg: &Message) {
+    if !is_admin(ctx, msg).await {
+        say!(ctx, msg, "Permission Denied.");
+        return;
+    };
+
     let store = ctx.data.read().await;
     let config_handler = store.get::<ConfigContainer>().expect("Missing Config");
 
@@ -55,6 +75,11 @@ pub async fn log_config(_: &Handler, ctx: &Context, _: &Message) {
 }
 
 pub async fn update(_: &Handler, ctx: &Context, msg: &Message) {
+    if !is_admin(ctx, msg).await {
+        say!(ctx, msg, "Permission Denied.");
+        return;
+    };
+
     say!(ctx, msg, "Updating...");
 
     let path = std::env::current_exe().unwrap();

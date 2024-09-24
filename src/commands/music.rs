@@ -2,12 +2,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Deserialize;
-use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, Embed};
+use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
 use songbird::error::JoinResult;
-use songbird::input::{AuxMetadata, Compose, YoutubeDl};
+use songbird::input::{AudioStreamError, AuxMetadata, Compose, YoutubeDl};
 use songbird::Call;
 
 use songbird::input::queue_list;
@@ -155,29 +155,27 @@ pub async fn play_playlist(_: &Handler, ctx: &Context, msg: &Message) {
     }
 }
 
-async fn get_info_from_embed(ctx: &Context, msg: &Message) -> Option<Embed> {
-    let mut current_message = msg;
-    let mut message_store;
-
-    while let None = current_message.embeds.first() {
-        let mut test_timer = Instant::now();
+async fn get_info_from_embed(
+    ctx: &Context,
+    msg: &Message,
+) -> Result<AuxMetadata, AudioStreamError> {
+    loop {
         let new = msg.channel_id.message(ctx, msg.id).await;
-        debug_time(&mut test_timer, "getting msg from discord");
-
-        if let Ok(m) = new {
-            if let Some(e) = m.embeds.first() {
-                return Some(e.clone());
-            } else {
-                message_store = m;
-                current_message = &message_store;
-                println!("Looping");
+        if let Ok(new_message) = new {
+            match new_message.embeds.first() {
+                None => {
+                    println!("Looping")
+                }
+                Some(embed) => {
+                    return Ok(AuxMetadata {
+                        title: embed.title.clone(),
+                        source_url: embed.url.clone(),
+                        ..Default::default()
+                    });
+                }
             }
-        } else {
-            return None;
         }
     }
-
-    return None;
 }
 
 async fn get_call<'a>(ctx: &'a Context, msg: &'a Message) -> Arc<Mutex<Call>> {
@@ -280,19 +278,30 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
 
     debug_time(&mut timer, "getting call");
 
+    /*
     if song_to_play.contains("www.youtube.com") {
         if let Ok(Some(embed)) =
             tokio::time::timeout(Duration::from_secs(1), get_info_from_embed(ctx, msg)).await
         {
-            println!("{:?}", embed.title);
+            println!("Title: {:?}", embed.title);
+        } else {
+            println!("failed to find embed");
         }
     }
+     */
+    debug_time(&mut timer, "getting embed");
 
-    let http_client = {
+    let (config, http_client) = {
         let data = ctx.data.read().await;
-        data.get::<HttpKey>()
-            .cloned()
-            .expect("Guaranteed to exist in the typemap.")
+        (
+            data.get::<crate::ConfigContainer>()
+                .expect("Config")
+                .read_config()
+                .clone(),
+            data.get::<HttpKey>()
+                .cloned()
+                .expect("Guaranteed to exist in the typemap."),
+        )
     };
 
     debug_time(&mut timer, "pl check");
@@ -301,30 +310,46 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
         true => YoutubeDl::new(http_client, song_to_play.to_string()),
         false => {
             if call.queue().len() != 0 {
+                println!("using slow search track");
                 YoutubeDl::new_search(http_client, song_to_play.to_string())
             } else {
-                println!("using yt track");
-
+                println!("using fast search track");
                 debug_time(&mut timer, "making yt req");
-                let res = http_client.get(format!("https://www.googleapis.com/youtube/v3/search?part=snippet&q={}&key=[KEY]&fields=items(id(videoId),snippet(title,thumbnails(high(url))))&maxResults=1", song_to_play.to_string())).send().await.unwrap();
 
-                let item = res.json::<YTApiResponse>().await.unwrap();
+                let res = http_client.get(format!("https://www.googleapis.com/youtube/v3/search?part=snippet&q={}&key={}&fields=items(id(videoId),snippet(title,thumbnails(high(url))))&maxResults=1", song_to_play.to_string(), config.yt_api_key)).send().await.unwrap();
+                let txt = res.text().await.unwrap();
+                let item = serde_json::from_str::<YTApiResponse>(&txt);
 
                 debug_time(&mut timer, "got yt api response");
 
-                let video = item.items.first().expect("No results found for search!");
+                match item {
+                    Ok(inner) => {
+                        let video = inner.items.first().expect("No results found for search!");
 
-                let meta = AuxMetadata {
-                    title: Some(video.title.clone()),
-                    thumbnail: Some(video.thumbnails.clone()),
-                    ..Default::default()
-                };
+                        let meta = AuxMetadata {
+                            title: Some(video.title.clone()),
+                            thumbnail: Some(video.thumbnails.clone()),
+                            source_url: Some(format!(
+                                "https://www.youtube.com/watch?v={}",
+                                video.id
+                            )),
+                            ..Default::default()
+                        };
 
-                YoutubeDl::new_custom_meta(
-                    Some(meta),
-                    http_client,
-                    &format!("https://www.youtube.com/watch?v={}", video.id),
-                )
+                        YoutubeDl::new_custom_meta(
+                            Some(meta),
+                            http_client,
+                            &format!("https://www.youtube.com/watch?v={}", video.id),
+                        )
+                    }
+                    Err(_) => {
+                        println!(
+                            "Youtube api call failed, falling back to slow path\nYoutube API:\n{txt}"
+                        );
+
+                        YoutubeDl::new_search(http_client, song_to_play.to_string())
+                    }
+                }
             }
         }
     };
@@ -344,9 +369,12 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
 
     debug_time(&mut timer, "enqueue with preload");
 
-    //tokio::time::sleep(Duration::from_secs(10)).await;
+    //let metadata = track.aux_metadata().await.unwrap();
 
-    let metadata = track.aux_metadata().await.unwrap();
+    let metadata = tokio::select! {
+        Ok(test1) = track.aux_metadata() => test1,
+        Ok(test2) = get_info_from_embed(ctx, msg) => test2,
+    };
 
     debug_time(&mut timer, "getting metadata");
 
@@ -466,8 +494,24 @@ pub async fn queue(_handler: &Handler, ctx: &Context, msg: &Message) {
     if let Some(call_handler) = get_songbird(ctx, msg).await {
         let call_handler = call_handler.lock().await;
         let mut i: u32 = 0;
-        for t in &call_handler.queue().current_queue().as_slice()[..5] {
-            if let Some(metadata) = t.typemap().read().await.get::<TrackMetaKey>() {
+
+        let current_queue = call_handler.queue().current_queue();
+
+        if current_queue.is_empty() {
+            let embed = CreateEmbed::new()
+                .colour(Colour::RED)
+                .title(String::from("Queue is empty"));
+
+            let _ = msg
+                .channel_id
+                .send_message(ctx.http(), CreateMessage::new().add_embed(embed))
+                .await;
+
+            return;
+        }
+
+        for track in current_queue.iter().take(5) {
+            if let Some(metadata) = track.typemap().read().await.get::<TrackMetaKey>() {
                 let title_text = if i == 0 {
                     "Now Playing".to_string()
                 } else {

@@ -117,18 +117,25 @@ async fn run_bot() {
     config.print_state();
     config.save_state().expect("Error saving config");
 
-    // Login with a bot token from the environment
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-
     // Set gateway intents, which decides what events the bot will be notified about
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::all()
         | GatewayIntents::MESSAGE_CONTENT;
 
+    // Migration code, to be removed when live bots are migrated
+    let old_token = &env::var("DISCORD_TOKEN").unwrap_or(String::from("MISSING_TOKEN"));
+    let new_token = &config.read_config().discord_api_key;
+
+    let token_to_use = if new_token.is_empty() {
+        old_token
+    } else {
+        new_token
+    };
+
     println!("Creating Client");
     // Create a new instance of the Client, logging in as a bot.
-    let mut client = Client::builder(&token, intents)
+    let mut client = Client::builder(token_to_use, intents)
         .event_handler(Handler)
         .register_songbird()
         .type_map_insert::<HttpKey>(reqwest::Client::new())
@@ -140,7 +147,9 @@ async fn run_bot() {
         let mut data = client.data.write().await;
         data.insert::<ShardManagerContainer>(client.shard_manager.clone());
     }
+
     println!("Starting Listener");
+
     // Start listening for events by starting a single shard
     if let Err(why) = client.start().await {
         println!("Client error: {why:?}");
