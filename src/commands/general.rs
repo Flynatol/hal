@@ -23,6 +23,27 @@ pub async fn edon_time(_: &Handler, ctx: &Context, msg: &Message) {
         "The current time for Edon is: {}",
         e_time.format("%H:%M:%S")
     );
+
+    let mut store = ctx.data.write().await;
+    println!("got store lock");
+
+    let config_handler = store.get_mut::<ConfigContainer>().expect("Missing Config");
+
+    let mut new_config = config_handler.read_config().to_owned();
+    new_config.edon_count += 1;
+    let _ = config_handler.set_config(new_config);
+}
+
+pub async fn edon_time_count(_: &Handler, ctx: &Context, msg: &Message) {
+    let store = ctx.data.read().await;
+    let config_handler = store.get::<ConfigContainer>().expect("Missing Config");
+
+    crate::say!(
+        ctx,
+        msg,
+        "Edontime has been used {} times",
+        config_handler.read_config().edon_count
+    );
 }
 
 pub async fn is_admin(ctx: &Context, msg: &Message) -> bool {

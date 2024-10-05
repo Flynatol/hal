@@ -19,6 +19,7 @@ pub struct Config {
     pub auth_users: Vec<UserId>,
     pub yt_api_key: String,
     pub discord_api_key: String,
+    pub edon_count: usize,
 }
 
 impl Default for Config {
@@ -29,6 +30,7 @@ impl Default for Config {
             auth_users: vec![UserId::new(95637120575614976)],
             yt_api_key: String::from(""),
             discord_api_key: String::from(""),
+            edon_count: 0,
         }
     }
 }

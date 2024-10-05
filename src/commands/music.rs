@@ -2,15 +2,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Deserialize;
+use serenity::all::ChannelId;
 use serenity::all::{Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
+
 use songbird::error::JoinResult;
 use songbird::input::{AudioStreamError, AuxMetadata, Compose, YoutubeDl};
 use songbird::Call;
 
 use songbird::input::queue_list;
+
+use songbird::CoreEvent;
+use songbird::Event;
 
 use tokio::sync::Mutex;
 use tokio::time::Instant;
@@ -45,11 +50,22 @@ pub async fn join(ctx: &Context, msg: &Message) -> JoinResult<Arc<tokio::sync::M
     let res = manager.join(guild_id, connect_to).await;
     println!("joined");
 
-    if let Err(e) = &res {
-        print!("Failed to join channel : {e}");
-        say!(ctx, msg, "Error lacking permissions for that channel");
-    };
-
+    match &res {
+        Ok(v) => {
+            v.lock().await.add_global_event(
+                Event::Core(CoreEvent::ClientDisconnect),
+                crate::commands::music_util::UserDisconnectHandler {
+                    call: v.clone(),
+                    cache: ctx.cache.clone(),
+                },
+            );
+            println!("Registered leave event");
+        }
+        Err(e) => {
+            println!("Failed to join channel : {e}");
+            say!(ctx, msg, "Error lacking permissions for that channel");
+        }
+    }
     //todo
 
     return res;
@@ -68,7 +84,7 @@ pub async fn play_playlist(_: &Handler, ctx: &Context, msg: &Message) {
     let author_channel_id = {
         let guild = msg.guild(&ctx.cache).unwrap();
 
-        let channel_id: Option<serenity::all::ChannelId> = guild
+        let channel_id: Option<ChannelId> = guild
             .voice_states
             .get(&msg.author.id)
             .and_then(|voice_state| voice_state.channel_id);
@@ -252,7 +268,7 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
     let author_channel_id = {
         let guild = msg.guild(&ctx.cache).unwrap();
 
-        let channel_id: Option<serenity::all::ChannelId> = guild
+        let channel_id: Option<ChannelId> = guild
             .voice_states
             .get(&msg.author.id)
             .and_then(|voice_state| voice_state.channel_id);
@@ -275,6 +291,8 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
 
     let call_mutex = get_call(ctx, msg).await;
     let mut call = call_mutex.lock().await;
+
+    // Auto disconnect stuff here!
 
     debug_time(&mut timer, "getting call");
 

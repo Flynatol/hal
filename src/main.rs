@@ -67,6 +67,7 @@ impl EventHandler for Handler {
                 "queue" => queue(self, &ctx, &msg).await,
                 "skip" => skip(self, &ctx, &msg).await,
                 "edontime" => edon_time(self, &ctx, &msg).await,
+                "edoncount" => edon_time_count(self, &ctx, &msg).await,
                 "update" => update(self, &ctx, &msg).await,
                 "yt_test" => yt_test(self, &ctx, &msg).await,
                 "update_config" => update_config(self, &ctx, &msg).await,
