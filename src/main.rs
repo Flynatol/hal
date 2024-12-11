@@ -22,7 +22,7 @@ use crate::util::typemap::*;
 
 struct Handler;
 
-static VERSION: &str = "0.0.5";
+static VERSION: &str = "0.0.6";
 
 #[macro_export]
 macro_rules! say {
@@ -71,6 +71,7 @@ impl EventHandler for Handler {
                 "update" => update(self, &ctx, &msg).await,
                 "yt_test" => yt_test(self, &ctx, &msg).await,
                 "update_config" => update_config(self, &ctx, &msg).await,
+                "test_parse" => test_parse(self, &ctx, &msg).await,
                 "log_config" => log_config(self, &ctx, &msg).await,
                 _ => {}
             }

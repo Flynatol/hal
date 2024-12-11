@@ -1,3 +1,4 @@
+use serde_json::Error;
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
@@ -56,6 +57,18 @@ pub async fn is_admin(ctx: &Context, msg: &Message) -> bool {
         .contains(&msg.author.id)
 }
 
+pub async fn test_parse(_: &Handler, ctx: &Context, msg: &Message) {
+    if !is_admin(ctx, msg).await {
+        say!(ctx, msg, "Permission Denied.");
+        return;
+    };
+
+    if let Some((_, command)) = msg.content.split_once(' ') {
+        let p: Result<serde_json::Value, Error> = serde_json::from_str(command);
+
+        println!("Value {:?}", p);
+    }
+}
 pub async fn update_config(_: &Handler, ctx: &Context, msg: &Message) {
     if !is_admin(ctx, msg).await {
         say!(ctx, msg, "Permission Denied.");
@@ -73,7 +86,16 @@ pub async fn update_config(_: &Handler, ctx: &Context, msg: &Message) {
             let mut new_state = config_handler.read_state().to_owned();
 
             if let serde_json::Value::Object(ref mut map) = new_state {
-                map.insert(key.into(), value.into());
+                let p: Result<serde_json::Value, Error> = serde_json::from_str(value);
+
+                match p {
+                    Ok(val) => {
+                        map.insert(key.into(), val);
+                    }
+                    Err(e) => {
+                        say!(ctx, msg, "Failed with err: {:?}", e);
+                    }
+                }
             }
 
             if let Err(e) = config_handler.set_state(new_state) {

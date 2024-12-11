@@ -183,6 +183,7 @@ async fn get_info_from_embed(
                     println!("Looping")
                 }
                 Some(embed) => {
+                    println!("Got data from embed");
                     return Ok(AuxMetadata {
                         title: embed.title.clone(),
                         source_url: embed.url.clone(),
@@ -389,9 +390,11 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
 
     //let metadata = track.aux_metadata().await.unwrap();
 
+    let time = tokio::time::Duration::from_secs(10);
+
     let metadata = tokio::select! {
-        Ok(test1) = track.aux_metadata() => test1,
-        Ok(test2) = get_info_from_embed(ctx, msg) => test2,
+        Ok(Ok(test1)) = tokio::time::timeout(time, track.aux_metadata()) => test1,
+        Ok(Ok(test2)) = tokio::time::timeout(time, get_info_from_embed(ctx, msg)) => test2,
     };
 
     debug_time(&mut timer, "getting metadata");
