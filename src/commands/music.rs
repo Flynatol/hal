@@ -183,7 +183,6 @@ async fn get_info_from_embed(
                     println!("Looping")
                 }
                 Some(embed) => {
-                    println!("Got data from embed");
                     return Ok(AuxMetadata {
                         title: embed.title.clone(),
                         source_url: embed.url.clone(),
@@ -393,8 +392,15 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
     let time = tokio::time::Duration::from_secs(10);
 
     let metadata = tokio::select! {
-        Ok(Ok(test1)) = tokio::time::timeout(time, track.aux_metadata()) => test1,
-        Ok(Ok(test2)) = tokio::time::timeout(time, get_info_from_embed(ctx, msg)) => test2,
+        Ok(Ok(aux_meta)) = tokio::time::timeout(time, track.aux_metadata()) => {
+            debug_time(&mut timer, "getting metadata from aux metadata");
+            aux_meta
+        },
+        Ok(Ok(embed_meta)) = tokio::time::timeout(time, get_info_from_embed(ctx, msg)) => {
+            debug_time(&mut timer, "getting metadata from aux metadata");
+            embed_meta
+        },
+        else => {AuxMetadata::default()},
     };
 
     debug_time(&mut timer, "getting metadata");
@@ -416,7 +422,12 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
     let mut embed = CreateEmbed::new()
         .colour(Colour::RED)
         .author(CreateEmbedAuthor::new(title_text))
-        .title(metadata.title.as_ref().unwrap_or(&String::from("Unknown")))
+        .title(
+            metadata
+                .title
+                .as_ref()
+                .unwrap_or(&String::from("Failed to grab title")),
+        )
         .url(
             metadata
                 .source_url

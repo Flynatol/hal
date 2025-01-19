@@ -6,11 +6,6 @@ use serenity::all::UserId;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 
-static CONFIG_PATH: &str = "config.json";
-
-// todo: add local serialized config
-// Should be loaded on launch and saved on exit
-// Use named json fields all flagged optional to allow for updates
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
@@ -37,25 +32,20 @@ impl Default for Config {
 
 #[derive(Default)]
 pub struct ConfigHandler {
+    config_path: String,
     config: Config,
     state: Value,
 }
 
 impl ConfigHandler {
-    pub fn load_config_file() -> Result<Self, Box<dyn std::error::Error>> {
-        let Ok(file) = File::open(CONFIG_PATH) else {
-            println!("Failed to open file, falling back to default settings");
-
-            return Ok(ConfigHandler {
-                config: Config::default(),
-                state: serde_json::to_value(Config::default())?,
-            });
-        };
+    pub fn load_config_file(config_path: &str) -> Result<Self, Box<dyn std::error::Error + '_>> {
+        let file = File::open(config_path)?;
 
         let reader = BufReader::new(file);
         let loaded_config: Value = serde_json::from_reader(reader)?;
 
         let mut output = ConfigHandler {
+            config_path: config_path.to_string(),
             config: Config::deserialize(&loaded_config)?,
             state: loaded_config,
         };
@@ -120,7 +110,7 @@ impl ConfigHandler {
         };
     }
     pub fn save_state(&self) -> std::io::Result<()> {
-        let mut writer = BufWriter::new(File::create(CONFIG_PATH)?);
+        let mut writer = BufWriter::new(File::create(&self.config_path)?);
         serde_json::to_writer_pretty(&mut writer, &self.state)?;
 
         writer.flush()?;

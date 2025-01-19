@@ -22,7 +22,7 @@ use crate::util::typemap::*;
 
 struct Handler;
 
-static VERSION: &str = "0.0.6";
+static VERSION: &str = "0.0.7";
 
 #[macro_export]
 macro_rules! say {
@@ -85,14 +85,22 @@ struct Args {
     /// Spawn in child mode?
     #[arg(short, long, value_name = "child")]
     child: bool,
+    #[clap(default_value = "config.json")]
+    config_path: String,
 }
 
 fn main() {
     let args = Args::parse();
+    let config = ConfigHandler::load_config_file(&args.config_path).expect(&format!(
+        "ERROR: loading config failed, aborting! {:?}",
+        &args.config_path
+    ));
+
+    println!("Config loaded!");
 
     if args.child {
         println!("Starting Child Instance {}", VERSION);
-        run_bot();
+        run_bot(config);
         println!("tokio main ended");
     } else {
         let path = std::env::current_exe().unwrap();
@@ -100,6 +108,7 @@ fn main() {
 
         while Command::new(&path)
             .arg("--child")
+            .arg(&args.config_path)
             .status()
             .expect("failed to execute process")
             .success()
@@ -112,10 +121,8 @@ fn main() {
 }
 
 #[tokio::main]
-async fn run_bot() {
+async fn run_bot(config: ConfigHandler) {
     println!("Starting...");
-
-    let config = ConfigHandler::load_config_file().expect("Error loading config!");
     config.print_state();
     config.save_state().expect("Error saving config");
 
