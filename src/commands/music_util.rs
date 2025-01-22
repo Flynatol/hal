@@ -14,6 +14,9 @@ impl EventHandler for UserDisconnectHandler {
     async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
         match ctx {
             EventContext::ClientDisconnect(_) => {
+                // Wait a few seconds to leave (and to check if we should)
+                let _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+
                 let mut call_unlocked = self.call.lock().await;
                 let c = call_unlocked.current_connection();
 
@@ -29,6 +32,8 @@ impl EventHandler for UserDisconnectHandler {
                     }
                     _ => false,
                 };
+
+                println!("Should leave: {:?}", shoud_leave);
 
                 if shoud_leave {
                     let _ = call_unlocked.leave().await;

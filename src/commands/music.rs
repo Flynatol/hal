@@ -9,10 +9,8 @@ use serenity::model::channel::Message;
 use serenity::prelude::CacheHttp;
 
 use songbird::error::JoinResult;
-use songbird::input::{AudioStreamError, AuxMetadata, Compose, YoutubeDl};
+use songbird::input::{AudioStreamError, AuxMetadata, Compose};
 use songbird::Call;
-
-use songbird::input::queue_list;
 
 use songbird::CoreEvent;
 use songbird::Event;
@@ -21,6 +19,8 @@ use tokio::sync::Mutex;
 use tokio::time::Instant;
 
 use crate::{say, Handler, HttpKey, TrackMetaKey};
+
+use super::ytdl::{self, Ytdl};
 
 pub async fn join(ctx: &Context, msg: &Message) -> JoinResult<Arc<tokio::sync::Mutex<Call>>> {
     let (guild_id, channel_id) = {
@@ -61,12 +61,12 @@ pub async fn join(ctx: &Context, msg: &Message) -> JoinResult<Arc<tokio::sync::M
             );
             println!("Registered leave event");
         }
+        
         Err(e) => {
             println!("Failed to join channel : {e}");
             say!(ctx, msg, "Error lacking permissions for that channel");
         }
     }
-    //todo
 
     return res;
 }
@@ -107,7 +107,7 @@ pub async fn play_playlist(_: &Handler, ctx: &Context, msg: &Message) {
     };
 
     if let Some((_, song_to_play)) = msg.content.split_once(' ') {
-        if let Ok(mut song_list) = queue_list(song_to_play, http_client).await {
+        if let Ok(mut song_list) = ytdl::query_playlist(song_to_play, http_client).await {
             let call_mutex = get_call(ctx, msg).await;
             let mut call = call_mutex.lock().await;
 
@@ -234,8 +234,6 @@ pub async fn yt_test(_: &Handler, ctx: &Context, msg: &Message) {
 
         println!("Status {}", res.status());
 
-        //println!("{}", res.text().await.unwrap());
-
         let item = res.json::<YTApiResponse>().await.unwrap();
 
         let end = Instant::now();
@@ -246,19 +244,6 @@ pub async fn yt_test(_: &Handler, ctx: &Context, msg: &Message) {
             item.items.first().unwrap().title,
             end.duration_since(start).as_millis()
         );
-
-        /*
-        match res.json::<YTApiResponse>().await {
-            Ok(item) => {
-                let end = Instant::now();
-                say!(ctx, msg, "yt reponded with {} in {}ms", item.items.first().unwrap().title, end.duration_since(start).as_millis());
-
-            },
-            Err(e) => {
-                println!("Failed to decode yt response: {}", &res.text().await.unwrap());
-            }
-        }
-         */
     }
 }
 
@@ -324,12 +309,12 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
 
     debug_time(&mut timer, "pl check");
 
-    let mut track = match song_to_play.starts_with("https") || song_to_play.starts_with("www.") {
-        true => YoutubeDl::new(http_client, song_to_play.to_string()),
+    let mut track: Ytdl = match song_to_play.starts_with("https") || song_to_play.starts_with("www.") {
+        true => Ytdl::new(http_client, song_to_play.to_string()),
         false => {
             if call.queue().len() != 0 {
                 println!("using slow search track");
-                YoutubeDl::new_search(http_client, song_to_play.to_string())
+                Ytdl::new_search(http_client, song_to_play.to_string())
             } else {
                 println!("using fast search track");
                 debug_time(&mut timer, "making yt req");
@@ -354,7 +339,8 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
                             ..Default::default()
                         };
 
-                        YoutubeDl::new_custom_meta(
+
+                        Ytdl::new_custom_meta(
                             Some(meta),
                             http_client,
                             &format!("https://www.youtube.com/watch?v={}", video.id),
@@ -365,7 +351,7 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
                             "Youtube api call failed, falling back to slow path\nYoutube API:\n{txt}"
                         );
 
-                        YoutubeDl::new_search(http_client, song_to_play.to_string())
+                        Ytdl::new_search(http_client, song_to_play.to_string())
                     }
                 }
             }
@@ -400,7 +386,10 @@ pub async fn play(handler: &Handler, ctx: &Context, msg: &Message) {
             debug_time(&mut timer, "getting metadata from aux metadata");
             embed_meta
         },
-        else => {AuxMetadata::default()},
+        else => {
+            debug_time(&mut timer, "Failed to metta data");
+            AuxMetadata::default()
+        },
     };
 
     debug_time(&mut timer, "getting metadata");

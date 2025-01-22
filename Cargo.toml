@@ -6,20 +6,22 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1.85"
 chrono = "0.4.38"
-chrono-tz = "0.9.0"
+chrono-tz = "0.10.1"
 clap = { version = "4.5.4", features = ["derive"] }
-google-youtube3 = "5.0.4"
+google-youtube3 = "6.0.0"
 reqwest = { version = "0.11.27", features = ["json"] }
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
-serenity = { version = "0.12.2", features = ["cache"] }
-songbird = { version = "*", features = ["builtin-queue", "serenity"] }
+serenity = { version = "0.12.3", features = ["cache"] }
+songbird = { version = "0.4.6", features = ["builtin-queue", "serenity"] }
+symphonia-core = "0.5.4"
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
 
 [dependencies.symphonia]
-version = "0.5.2"
+version = "*"
 features = ["aac", "mp3", "isomp4", "alac"]
 
-[patch.crates-io]
-songbird = { path = "../patches/songbird-0.4.1"}
+#[patch.crates-io]
+#songbird = { path = "../patches/songbird-0.4.1"}
